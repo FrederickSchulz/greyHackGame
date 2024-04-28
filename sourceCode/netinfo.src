@@ -81,6 +81,9 @@ else if resultType == "file" then
 		rootFolder = getRootFolder(exploitResult);
 		printSesitiveInfo(rootFolder)
 	end if
+else if resultType == "computer" then
+	rootFolder = exploitResult.File("/")
+	printSesitiveInfo(rootFolder)
 end if
 end function
 
@@ -172,7 +175,7 @@ while( keepChoosing )
 	if typeof(option) != "number" or (option < 0 or option > exploitList.len-1) then
 		print("Invalid input. Type a valid number")
 	else 
-		exploitResult = metaLib.overflow(exploitList[option].mem_address, exploitList[option].unsec_value);
+		exploitResult = metaLib.overflow(exploitList[option].mem_address, exploitList[option].unsec_value, "123");
 		handleExploitResult(exploitResult);
 		break;
 	end if
