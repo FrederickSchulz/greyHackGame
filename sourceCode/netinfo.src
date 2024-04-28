@@ -12,11 +12,52 @@ importLib = function(libName)
 	return library;
 end function
 
+// moves through folders parents and returns reference to the parent "/" folder
+// param1: reference to a folder
+getRootFolder = function(folder)
+	currentFolder = folder
+	while currentFolder.name != "/"
+		print("Moving to: " + currentFolder.parent.name);
+		currentFolder = currentFolder.parent;
+	end while
+	return currentFolder;
+end function
+
+// gather typical sensitive information
+// param1: reference to the "/" folder
+printSesitiveInfo = function(rootFolder)
+	getFolder = function(folderName)
+		for folder in rootFolder.get_folders
+			if folder.name == folderName then return folder;
+		end for
+		return null;
+	end function
+
+	print("Trying to get pwd content...")
+	etcFolder = getFolder("etc")
+	if etcFolder then
+		for file in etcFolder.get_files
+			if file.name == "passwd" then print(file.get_content);
+		end for
+	end if
+	
+	print("Trying to get home folder content...")
+	homeFolder = getFolder("home")
+	if homeFolder then
+		for userFolder in homeFolder.get_folders
+			print(userFolder.name)
+		end for
+	end if
+end function
+
 handleExploitResult = function(exploitResult)
 resultType = typeof(exploitResult);
 print("Handling exploit result type: " + resultType);
 if resultType == "shell" then
 	print("Obtained shell");
+	computer = exploitResult.host_computer
+	rootFolder = computer.File("/");
+	printSesitiveInfo(rootFolder);
 	exploitResult.start_terminal;
 else if resultType == "file" then
 	if not exploitResult.is_folder then 
@@ -25,7 +66,7 @@ else if resultType == "file" then
 		print(exploitResult.get_content)
 	else
 		print("Obtained folder: " + exploitResult.name);
-		// print name of user folders
+		// print folder names
 		print("folders in " + exploitResult.name + " are:")
 		folders = exploitResult.get_folders
 		for folder in folders
@@ -37,25 +78,8 @@ else if resultType == "file" then
 		for file in files
 			print(file.name)
 		end for
-		currentFolder = exploitResult
-		while currentFolder.name != "/"
-			print("Moving to: " + currentFolder.parent.name);
-			currentFolder = currentFolder.parent;
-		end while
-		// try to get info starting at "/" folder
-		print("Trying to get pwd content...")
-		for folder in currentFolder.get_folders
-			if folder.name == "etc" then
-				for file in folder.get_files
-					if file.name == "passwd" then print(file.get_content);
-				end for
-			else if folder.name == "home" then
-				print("Users in 'home' are: ")
-				for userFolder in folder.get_folders
-					print(userFolder.name)
-				end for
-			end if
-		end for
+		rootFolder = getRootFolder(exploitResult);
+		printSesitiveInfo(rootFolder)
 	end if
 end if
 end function
@@ -106,7 +130,6 @@ exploitList = [];
 for mem in memoryList
 	addressScan = metaxploit.scan_address(metaLib, mem);
 	unsafeChecks = addressScan.split("Unsafe check: ");
-	print("deleting first token: " + unsafeChecks[0])
 	unsafeChecks.remove(0)
 	for unsafeCheck in unsafeChecks
 		exploit = new Exploit;
