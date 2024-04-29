@@ -1,0 +1,56 @@
+saveExploit = function(key,value)
+	computer = get_shell.host_computer;
+	file = computer.File(parent_path(program_path) +"/"+key+".txt")
+	if not file then 
+		computer.touch(parent_path(program_path), key+".txt")
+		file = computer.File(parent_path(program_path) +"/"+key+".txt")
+	end if
+	file.set_content(value);
+end function
+
+parseToMap = function(mapString)
+	print("Raw map string: " + mapString)
+	resultMap = {};
+	mapString = mapString[1:-1]
+	while not mapString.len <= 0
+		nextKey = mapString[:mapString.indexOf(":")];
+		print("nextKey: " + nextKey)
+		mapString = mapString[mapString.indexOf(":")+1:]
+		while mapString.len > 0 and mapString[0] == " "
+			mapString = mapString[1:]
+		end while
+		nextValue = "";
+		if mapString[0] == char(34) then
+			nextValue = mapString[0:mapString.indexOf(char(34),0)+1]
+			mapString = mapString[mapString.indexOf(char(34),0)+1:]
+			resultMap[nextKey] = nextValue
+		else if mapString[0] == "{" then
+			// todo parse map
+			nextValue = mapString[0:mapString.indexOf("}")+1]
+			mapString = mapString[mapString.indexOf("}")+1:]
+		else
+			exit("can only parse strings or maps as map value for now")
+		end if
+		print("nextValue: " + nextValue)
+		//mapString = "";
+	end while 
+	return mapString;
+end function
+
+loadExploit = function(key)
+	computer = get_shell.host_computer;
+	file = computer.File(parent_path(program_path) +"/"+key+".txt")
+	if not file then return null
+	print("parsing string to map...")
+	return parseToMap(file.get_content);
+end function
+
+// Test execution
+if loadExploit("test") then
+	print("mapContent: "+loadExploit("test"))
+else
+	fileContentMock = {}
+	fileContentMock["mem"] = "1234"
+	fileContentMock["data"] = {"1":"someData"};
+	saveExploit("test", fileContentMock);
+end if
