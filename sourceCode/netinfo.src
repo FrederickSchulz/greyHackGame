@@ -1,182 +1,73 @@
-// netinfo
-if params.len < 1 or params.len > 2 or params[0] == "-h" or params[0] == "--help" then exit("<b>Usage: "+program_path.split("/")[-1]+" [ip_address] [port]</b>")
-
-// try to load library from /lib or current folder
-importLib = function(libName)
-	if not libName or not typeof(libName) == "string" then exit("Error: libName needs to be a string")
-	library = include_lib("/lib/" + libName)
-	if not library then
-    	library = include_lib(current_path + "/" + "libName")
+saveExploit = function(key,value)
+	computer = get_shell.host_computer;
+	file = computer.File(parent_path(program_path) +"/"+key+".txt")
+	if not file then 
+		computer.touch(parent_path(program_path), key+".txt")
+		file = computer.File(parent_path(program_path) +"/"+key+".txt")
 	end if
-	if not library then exit("Error: Can't find " + libName + " library in the /lib path or the current folder")
-	return library;
+	file.set_content(value);
 end function
 
-// moves through folders parents and returns reference to the parent "/" folder
-// param1: reference to a folder
-getRootFolder = function(folder)
-	currentFolder = folder
-	while currentFolder.name != "/"
-		print("Moving to: " + currentFolder.parent.name);
-		currentFolder = currentFolder.parent;
-	end while
-	return currentFolder;
-end function
-
-// gather typical sensitive information
-// param1: reference to the "/" folder
-printSesitiveInfo = function(rootFolder)
-	getFolder = function(folderName)
-		for folder in rootFolder.get_folders
-			if folder.name == folderName then return folder;
+deserializeMap = function(mapString)
+	// helper functions
+	findNextClosingBracketIndex = function(inputString)
+		for i in range(0, inputString.len -1)
+			if inputString[i] == "}" then return i;
 		end for
-		return null;
+		exit("Expected string to contain '}' but could not find an occurence in: " + inputString)
+	end function
+	trimLeft = function(inputString)
+		while inputString.len > 0 and (inputString[0] == " " or inputString[0] == char(9))
+			inputString = inputString[1:]
+		end while
+		return inputString
 	end function
 
-	print("Trying to get pwd content...")
-	etcFolder = getFolder("etc")
-	if etcFolder then
-		for file in etcFolder.get_files
-			if file.name == "passwd" then print(file.get_content);
-		end for
-	end if
-	
-	print("Trying to get home folder content...")
-	homeFolder = getFolder("home")
-	if homeFolder then
-		for userFolder in homeFolder.get_folders
-			print(userFolder.name)
-		end for
-	end if
+	// executing code
+	//print("Raw map string: " + mapString)
+	resultMap = {};
+	if not (mapString[0] == "{" and mapString[-1] == "}") then exit("input is not a map")
+	//print("deserializing map...")
+	mapString = mapString[1:]
+	while mapString.len > 1
+		mapString = trimLeft(mapString)
+		if mapString.len <=1 then break;
+		if mapString[0] == "," then mapString = trimLeft(mapString[1:])
+		if not mapString[0] == char(34) then exit("Only string keys are supported but got: " + mapString)
+		key = mapString[1:mapString.indexOf(char(34), 0)]
+		mapString = mapString[mapString.indexOf(char(34), 0)+1:]
+		mapString = trimLeft(mapString)
+		if not mapString[0] == ":" then exit("expected ':' but got: " + mapString)
+		mapString = trimLeft(mapString[1:])
+		value = ""
+		if mapString[0] == char(34) then
+			value = mapString[1:mapString.indexOf(char(34), 0)]
+			mapString = mapString[mapString.indexOf(char(34), 0)+1:]
+		else if mapString[0] == "{" then
+			value = deserializeMap(mapString[0:findNextClosingBracketIndex(mapString) +1])
+			mapString = mapString[findNextClosingBracketIndex(mapString) +1:]
+		end if
+		resultMap[key] = value
+		//print("resultMap after iteration: "+resultMap)
+	end while
+	return resultMap
 end function
 
-handleExploitResult = function(exploitResult)
-resultType = typeof(exploitResult);
-print("Handling exploit result type: " + resultType);
-if resultType == "shell" then
-	print("Obtained shell");
-	computer = exploitResult.host_computer
-	rootFolder = computer.File("/");
-	printSesitiveInfo(rootFolder);
-	exploitResult.start_terminal;
-else if resultType == "file" then
-	if not exploitResult.is_folder then 
-		print("Obtained file: " + exploitResult.name)
-		print("With content:")
-		print(exploitResult.get_content)
-	else
-		print("Obtained folder: " + exploitResult.name);
-		// print folder names
-		print("folders in " + exploitResult.name + " are:")
-		folders = exploitResult.get_folders
-		for folder in folders
-			print(folder.name)
-		end for
-		// print file names
-		print("files in " + exploitResult.name + " are:")
-		files = exploitResult.get_files
-		for file in files
-			print(file.name)
-		end for
-		rootFolder = getRootFolder(exploitResult);
-		printSesitiveInfo(rootFolder)
-	end if
-else if resultType == "computer" then
-	rootFolder = exploitResult.File("/")
-	printSesitiveInfo(rootFolder)
-end if
+loadExploit = function(key)
+	computer = get_shell.host_computer;
+	file = computer.File(parent_path(program_path) +"/"+key+".txt")
+	if not file then return null
+	print("trying to parse file content to map...")
+	return deserializeMap(file.get_content);
 end function
 
-
-metaxploit = importLib("metaxploit.so");
-
-// init params
-address = params[0]
-port = null; if params.len == 2 then port = params[1].to_int;
-net_session = null
-// connect session
-if port then 
-	net_session = metaxploit.net_use( address, port )
-else 
-	net_session = metaxploit.net_use( address )
+// Test execution
+loadedExploitMap = loadExploit("test");
+if loadedExploitMap and loadedExploitMap.len > 0 then
+	print("mapContent: "+loadedExploitMap)
+else
+	fileContentMock = {}
+	fileContentMock["mem"] = "1234"
+	fileContentMock["data"] = {"1":"someData"};
+	saveExploit("test", fileContentMock);
 end if
-
-if not net_session then exit("Error: can't connect to net session")
-
-// Requirement object initialization
-Requirements = {}
-Requirements.registered_users = 0;
-Requirements.active_users = 0;
-Requirements.active_root_user = 0;
-Requirements.conn_gateway = 0;
-Requirements.port_forwards = 0;
-
-sessionMetaData = new Requirements;
-sessionMetaData.registered_users = net_session.get_num_users;
-sessionMetaData.active_users = net_session.is_any_active_user;
-sessionMetaData.active_root_user = net_session.is_root_active_user;
-sessionMetaData.conn_gateway = net_session.get_num_conn_gateway;
-sessionMetaData.port_forwards = net_session.get_num_portforward;
-
-print("registered users:    " + sessionMetaData.registered_users)
-print("active user:         " + sessionMetaData.active_users)
-print("active root user:    " + sessionMetaData.active_root_user)
-print("connection gateways: " + sessionMetaData.conn_gateway)
-print("port forwards:       " + sessionMetaData.port_forwards)
-
-metaLib = net_session.dump_lib
-print("scanning lib " + metaLib.lib_name + " in version " + metaLib.version) 
-memoryList = metaxploit.scan(metaLib)
-
-Exploit = {};
-exploitList = [];
-for mem in memoryList
-	addressScan = metaxploit.scan_address(metaLib, mem);
-	unsafeChecks = addressScan.split("Unsafe check: ");
-	unsafeChecks.remove(0)
-	for unsafeCheck in unsafeChecks
-		exploit = new Exploit;
-		exploit.mem_address = mem;
-		exploit.unsec_value = null;
-		exploit.requirements = [];
-		exploit.printObject = function()
-			print(self.mem_address)
-			print(self.unsec_value)
-			for requirement in self.requirements
-				print("* " + requirement)
-			end for
-		end function
-		
-		requirements = unsafeCheck.split("\* ");
-		unsecureValueText = requirements.pull
-		exploit.unsec_value = slice(unsecureValueText, unsecureValueText.indexOf("<b>")+3, unsecureValueText.indexOf("</b>"))
-		//print("unsec_value: " + exploit.unsec_value)
-		for requirement in requirements
-			// todo parse requirement string to computer readable value
-			exploit.requirements.push(requirement)
-		end for
-		
-		exploitList.push(exploit)
-		//print("pushed to queue:");
-		//print(unsafeCheck);
-	end for
-	//print(mem)
-	//print(addressScan)
-end for
-for i in range(0, exploitList.len - 1)
-	print("Exploit " + i + " :")
-	exploitList[i].printObject
-end for
-keepChoosing = true
-while( keepChoosing )
-	option = user_input("Select Exploit To use: ")
-	if option == "exit" then keepChoosing = false;
-	option = option.to_int
-	if typeof(option) != "number" or (option < 0 or option > exploitList.len-1) then
-		print("Invalid input. Type a valid number")
-	else 
-		exploitResult = metaLib.overflow(exploitList[option].mem_address, exploitList[option].unsec_value, "123");
-		handleExploitResult(exploitResult);
-		break;
-	end if
-end while
