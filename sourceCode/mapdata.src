@@ -8,46 +8,63 @@ saveExploit = function(key,value)
 	file.set_content(value);
 end function
 
-parseToMap = function(mapString)
-	print("Raw map string: " + mapString)
-	resultMap = {};
-	mapString = mapString[1:-1]
-	while not mapString.len <= 0
-		nextKey = mapString[:mapString.indexOf(":")];
-		print("nextKey: " + nextKey)
-		mapString = mapString[mapString.indexOf(":")+1:]
-		while mapString.len > 0 and mapString[0] == " "
-			mapString = mapString[1:]
+deserializeMap = function(mapString)
+	// helper functions
+	findNextClosingBracketIndex = function(inputString)
+		for i in range(0, inputString.len -1)
+			if inputString[i] == "}" then return i;
+		end for
+		exit("Expected string to contain '}' but could not find an occurence in: " + inputString)
+	end function
+	trimLeft = function(inputString)
+		while inputString.len > 0 and (inputString[0] == " " or inputString[0] == char(9))
+			inputString = inputString[1:]
 		end while
-		nextValue = "";
+		return inputString
+	end function
+
+	// executing code
+	//print("Raw map string: " + mapString)
+	resultMap = {};
+	if not (mapString[0] == "{" and mapString[-1] == "}") then exit("input is not a map")
+	//print("deserializing map...")
+	mapString = mapString[1:]
+	while mapString.len > 1
+		mapString = trimLeft(mapString)
+		if mapString.len <=1 then break;
+		if mapString[0] == "," then mapString = trimLeft(mapString[1:])
+		if not mapString[0] == char(34) then exit("Only string keys are supported but got: " + mapString)
+		key = mapString[1:mapString.indexOf(char(34), 0)]
+		mapString = mapString[mapString.indexOf(char(34), 0)+1:]
+		mapString = trimLeft(mapString)
+		if not mapString[0] == ":" then exit("expected ':' but got: " + mapString)
+		mapString = trimLeft(mapString[1:])
+		value = ""
 		if mapString[0] == char(34) then
-			nextValue = mapString[0:mapString.indexOf(char(34),0)+1]
-			mapString = mapString[mapString.indexOf(char(34),0)+1:]
-			resultMap[nextKey] = nextValue
+			value = mapString[1:mapString.indexOf(char(34), 0)]
+			mapString = mapString[mapString.indexOf(char(34), 0)+1:]
 		else if mapString[0] == "{" then
-			// todo parse map
-			nextValue = mapString[0:mapString.indexOf("}")+1]
-			mapString = mapString[mapString.indexOf("}")+1:]
-		else
-			exit("can only parse strings or maps as map value for now")
+			value = deserializeMap(mapString[0:findNextClosingBracketIndex(mapString) +1])
+			mapString = mapString[findNextClosingBracketIndex(mapString) +1:]
 		end if
-		print("nextValue: " + nextValue)
-		//mapString = "";
-	end while 
-	return mapString;
+		resultMap[key] = value
+		//print("resultMap after iteration: "+resultMap)
+	end while
+	return resultMap
 end function
 
 loadExploit = function(key)
 	computer = get_shell.host_computer;
 	file = computer.File(parent_path(program_path) +"/"+key+".txt")
 	if not file then return null
-	print("parsing string to map...")
-	return parseToMap(file.get_content);
+	print("trying to parse file content to map...")
+	return deserializeMap(file.get_content);
 end function
 
 // Test execution
-if loadExploit("test") then
-	print("mapContent: "+loadExploit("test"))
+loadedExploitMap = loadExploit("test");
+if loadedExploitMap and loadedExploitMap.len > 0 then
+	print("mapContent: "+loadedExploitMap)
 else
 	fileContentMock = {}
 	fileContentMock["mem"] = "1234"
