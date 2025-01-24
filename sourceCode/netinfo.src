@@ -6,9 +6,9 @@ importLib = function(libName)
 	if not libName or not typeof(libName) == "string" then exit("Error: libName needs to be a string")
 	library = include_lib("/lib/" + libName)
 	if not library then
-    	library = include_lib(current_path + "/" + "libName")
+    	library = include_lib(current_path + "/" + libName)
 	end if
-	if not library then exit("Error: Can't find " + libName + " library in the /lib path or the current folder")
+	if not library then exit("Error: Can't find " + libName + " library in the /lib path or the current folder " + current_path)
 	return library;
 end function
 

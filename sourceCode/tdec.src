@@ -1,6 +1,6 @@
 //command: tdec
 cryptools = include_lib("/lib/crypto.so")
-if not cryptools then exit("Error: Missing crypto library")
+if not cryptools then exit("Error: Missing crypto library in /lib")
 
 if params.len != 1 or params[0] == "-h" or params[0] == "--help" then exit(command_info("decipher_usage"))
 
