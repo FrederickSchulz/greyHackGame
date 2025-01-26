@@ -58,12 +58,18 @@ if resultType == "shell" then
 	computer = exploitResult.host_computer
 	rootFolder = computer.File("/");
 	printSesitiveInfo(rootFolder);
-	exploitResult.start_terminal;
+	option = user_input("start terminal for this shell? (y/n)")
+	if option == "y" then
+		exploitResult.start_terminal;
+	else
+		return true;
+	end if
 else if resultType == "file" then
 	if not exploitResult.is_folder then 
 		print("Obtained file: " + exploitResult.name)
 		print("With content:")
 		print(exploitResult.get_content)
+		return true;
 	else
 		print("Obtained folder: " + exploitResult.name);
 		// print folder names
@@ -80,10 +86,14 @@ else if resultType == "file" then
 		end for
 		rootFolder = getRootFolder(exploitResult);
 		printSesitiveInfo(rootFolder)
+		return true;
 	end if
 else if resultType == "computer" then
 	rootFolder = exploitResult.File("/")
 	printSesitiveInfo(rootFolder)
+	return true;
+else if resultType == "null" then
+	return true;
 end if
 end function
 
@@ -167,16 +177,15 @@ for i in range(0, exploitList.len - 1)
 	print("Exploit " + i + " :")
 	exploitList[i].printObject
 end for
-keepChoosing = true
-while( keepChoosing )
+while( true )
 	option = user_input("Select Exploit To use: ")
-	if option == "exit" then keepChoosing = false;
+	if option == "exit" then break;
 	option = option.to_int
 	if typeof(option) != "number" or (option < 0 or option > exploitList.len-1) then
 		print("Invalid input. Type a valid number")
 	else 
 		exploitResult = metaLib.overflow(exploitList[option].mem_address, exploitList[option].unsec_value, "123");
-		handleExploitResult(exploitResult);
-		break;
+		keepRunning = handleExploitResult(exploitResult);
+		if not keepRunning then break;
 	end if
 end while
